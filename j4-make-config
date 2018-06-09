@@ -6,37 +6,49 @@
 
 from os import path, getenv, listdir, system
 from sys import argv
-from shutil import copyfile
 import argparse
 from subprocess import Popen, PIPE
 
+## Not needed until --init works.
+# from shutil import copyfile
+
 class j4Config():
     """ Used to organize all of the configuration files. """
-    def __init__(self, themefile, *args, **kwargs):
-        self.configs = {}
+    def __init__(self, theme_name=None, tolerant=False, verbose=False, quiet=False, *config_paths):
 
-        for line in themefile:
-            status = None
-            """
-            if "$i3-theme" in line:
-                status = line.strip()
-                if status not in self.configs:
-                    self.configs[status] = ''
-            elif status is not None:
-                self.configs[status] += line
-            """
-            if "$i3-theme-window" in line:
-                windowActive = True
-                barActive = False
-            elif "$i3-theme-bar" in line:
-                windowActive = False
-                barActive = True
-            else:
-                if windowActive and not barActive:
-                    windowText += line
-                elif not windowActive and barActive:
-                    barText += line
-        themefile.close()
+        self.raw_configs = {}
+        self.configs = {}
+        if theme_name is not None:
+            try:
+                self.readConfig(themes_list[theme_name], name="theme")
+            except KeyError:
+                prefix = "Warning: " if tolerant else "Error: "
+                print(prefix + "theme %s does not exist." % theme_name)
+                print_info(usage=False)
+                if not tolerant:
+                    exit(1)
+        for config_path in config_paths:
+            # Gets all config blocks.
+            self.readThemefile(config_path)
+        # Combines config blocks.
+        self.consolidateConfigs()
+
+    def readConfig(self, file_path, name=None):
+        """ Takes a file and extracts all of the blocks from it. """
+        if name is None:
+            name = file_path.split(os.sep)[-1]
+        with open(file_path, 'r') as file:
+            self.raw_configs[name] = {}
+            for line in file:
+                status = None
+                if "$i3-" in line:
+                    status = line.strip()
+                    if status not in self.raw_configs[name]:
+                        self.raw_configs[name][status] = ''
+                elif status is not None:
+                    self.raw_configs[name][status] += line
+        except IOError:
+            print("Error: could not open %s" % file_path)
         
         # try to open i3 base config file
         try:
