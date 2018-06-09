@@ -37,47 +37,55 @@ class j4Config():
         """ Takes a file and extracts all of the blocks from it. """
         if name is None:
             name = file_path.split(os.sep)[-1]
+        self.raw_configs[name] = {}
         with open(file_path, 'r') as file:
-            self.raw_configs[name] = {}
+            status = None
             for line in file:
-                status = None
                 if "$i3-" in line:
                     status = line.strip()
                     if status not in self.raw_configs[name]:
                         self.raw_configs[name][status] = ''
                 elif status is not None:
-                    self.raw_configs[name][status] += line
+                    self.raw_configs[name][status] += line.rstrip()
         except IOError:
             print("Error: could not open %s" % file_path)
         
+    def consolidateConfigs(self):
+        """ Combines all of the various raw_configs into a single config.
+            We deal with conflicts on a mostly random basis except for `theme`
+            being preferred over anything else. """
+        pass
+
+    def generateConfig(configs, basefile_path='config.base', i3_path=None):
+        """ Either we pass the absolute basefile_path, or the relative basefile_path
+            and the i3 config path. """
+        # Get the config directory path.
+        if i3_path is None:
+            i3_path = os.path.join(*basefile.split(os.sep)[:-1])
+            # Make sure this is relative.
+            basefile_path = basefile_path.split(os.sep)[-1]
         # try to open i3 base config file
-        try:
-            basefile = open(i3_BASECONFIG_PATH, "r")
-        except IOError:
-            print("Error: i3 base config file could not be opened.")
-            exit(1)
-        # read all lines of base config into list
-        baselines_list.extend(basefile.readlines())
-        basefile.close()
-        
-        # append all additional configuration files
-        for appendFilename in args.append:
-            try:
-                appendFile = open(i3_PATH + "/" + appendFilename, "r")
-            except IOError:
-                print("Error: file %s could not be opened." % appendFilename)
-                exit(1)
+        with open(i3_path + os.sep + basefile_path, 'r') as basefile:
+            # append all additional configuration files
+            for appendFilename in args.append:
+                try:
+                    appendFile = open(i3_PATH + "/" + appendFilename, "r")
+                except IOError:
+                    print("Error: file %s could not be opened." % appendFilename)
+                    exit(1)
             # read all lines of appendFile into list
             baselines_list.extend(appendFile.readlines())
             appendFile.close()
-        
+        except IOError:
+            print("Error: i3 base config file could not be opened.")
+            exit(1)
+
         # try to open i3 config file
         try:
             configfile = open(i3_CONFIG_PATH, "w")
         except IOError:
             print("Error: i3 config file could not be created.")
             exit(1)
-        
         # iterate over base config lines, write all to config file
         # and insert theme config at the right place
         for line in baselines_list:
