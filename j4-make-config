@@ -138,7 +138,6 @@ def j4Consolidator(j4_config, i3_path, basefile_path='config.base'):
                 line = line.rstrip()
                 # Strip away the line to just the block config name
                 tmp_line = line.lstrip().split(j4_config.PREFIX)[-1]
-                print("tmp line: %s" % tmp_line)
                 # Check if it's a marker
                 try:
                     for config_line in j4_config[tmp_line]:
