@@ -7,6 +7,7 @@
 from os import path, getenv, listdir, system, sep
 from sys import argv
 import argparse
+from string import printable
 from subprocess import Popen, PIPE
 
 ## Not needed until --init works.
@@ -139,8 +140,7 @@ def detectConfigDir():
             i3_PATH = getenv("XDG_CONFIG_HOME") + "/i3"
     return i3_PATH
 
-usage_info = """i3 config generator/switcher\n
-Usage examples:
+usage_info = """Usage examples:
 ===============
 Create config file and include a specific theme:
 \tj4-make-config <theme-name>
@@ -156,9 +156,23 @@ Run j4-make-config with the most recently used arguments:
 \tj4-make-config"""
 
 def ThemeListStr():
-    return ("\nAvailable themes:\n"
-            "=================\n" + 
-            "\n".join(sorted(themes_list.keys())))
+    line = ''
+    count = 8
+    for x in printable:
+        elements = []
+        for t in sorted(themes_list.keys()):
+            if t.startswith(x):
+                elements.append(t)
+        if elements:
+            for index, i in enumerate(range(len(elements) / count + 1)):
+                if index:
+                    line += '\t'
+                line += ', '.join(elements[i * count:(i + 1) * count]) + '\n'
+    line = line.strip()
+
+    return ("Available themes:\n"
+            "=================\n" + line
+    )
 
 def print_info(usage=True, themes=True):
     if usage:
@@ -197,21 +211,21 @@ def set_j4_cache(theme_name, interactive=False):
     rcfile.close()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='i3 config generator/switcher',
-            usage=usage_info)
+    parser = argparse.ArgumentParser(description='i3 config generator/switcher')
     parser.add_argument('--themes', action='store_true',
-            help="Shows all installed themes.")
+            help="Displays all available themes.")
     parser.add_argument(
             '-i', '--interactive', action='store_true',
             help="Uses rofi to select a theme.")
     parser.add_argument('-r', '--refresh', action='store_true',
             help='Reload i3 after creating the config file.')
-    parser.add_argument('-a', action='append', dest='append',
+    parser.add_argument('-a', '--append', action='append',
             metavar='<file-name>', default=list(),
-            help="Append additional configuration files.")
+            help="Append additional configuration files located "
+                 "in the i3 config directory.")
     parser.add_argument('theme', action='store', nargs='?',
-            metavar='<theme-name>', default=None,
-            help="Create a config file using a specific theme.")
+            metavar='<theme-name>|none', default=None,
+            help="Create a config file using a specific theme or no theme.")
     """
     # This doesn't work just yet.
     parser.add_argument('--init', action='store_true',
@@ -259,6 +273,11 @@ if __name__ == "__main__":
         exit(0)
     """
 
+    ## Parsing the arguments.
+    if len(argv)==1:
+        args = parser.parse_args(get_j4_cache())
+    else:
+        args = parser.parse_args() 
     if args.interactive:
         ps = Popen("echo '%s' | rofi -width 30 -dmenu -p 'Set i3 theme:'" % \
                 ("\n".join(sorted(themes_list.keys()))),
@@ -269,7 +288,9 @@ if __name__ == "__main__":
             set_j4_cache(args.theme, interactive=True)
         if args.theme is None:
             exit(0)
-
+    if args.themes:
+        print(ThemeListStr())
+        exit(0)
     if args.theme is not None and args.theme != 'none':
         # try to open given filename
         try:
