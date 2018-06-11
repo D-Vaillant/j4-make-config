@@ -160,7 +160,7 @@ def print_info(usage=True, themes=True):
     if usage:
         print(usage_info)
     if themes:
-        print(theme_info)
+        print(ThemeListStr())
 
 """ Instead of executing, I just do a split and load the values into the argparser. """
 def get_j4_cache():
@@ -193,18 +193,18 @@ def set_j4_cache(theme_name, interactive=False):
     rcfile.close()
 
 if __name__ == "__main__":
-    # TODO: Figure out how to get -h to work even if the config base doesn't exist yet.
     parser = argparse.ArgumentParser(description='i3 config generator/switcher',
-            usage=usage_info+"\n"+theme_info)
+            usage=usage_info)
+    parser.add_argument('--themes', action='store_true',
+            help="Shows all installed themes.")
     parser.add_argument(
             '-i', '--interactive', action='store_true',
             help="Uses rofi to select a theme.")
     parser.add_argument('-r', '--refresh', action='store_true',
             help='Reload i3 after creating the config file.')
-    parser.add_argument('-a', '--append', action='append',
+    parser.add_argument('-a', action='append', dest='append',
             metavar='<file-name>', default=list(),
-            help="Append additional configuration files located "
-                 "in the i3 config directory.")
+            help="Append additional configuration files.")
     parser.add_argument('theme', action='store', nargs='?',
             metavar='<theme-name>', default=None,
             help="Create a config file using a specific theme.")
@@ -222,7 +222,8 @@ if __name__ == "__main__":
 
     ## Configuring the work environment.
     # detect i3 configuration directory
-    if not detectConfigDir():
+    i3_PATH = detectConfigDir()
+    if not i3_PATH:
         print("Error: i3 base config file could not be found.")
         exit(1)
     else:
@@ -265,7 +266,7 @@ if __name__ == "__main__":
         if args.theme is None:
             exit(0)
 
-    if args.theme is not None:
+    if args.theme is not None and args.theme != 'none':
         # try to open given filename
         try:
             themefile = open(themes_list[args.theme], "r")
