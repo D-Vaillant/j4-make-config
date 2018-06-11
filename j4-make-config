@@ -100,9 +100,13 @@ class j4Config():
                 # append all additional configuration files
                 for line in basefile:
                     line = line.rstrip()
-                    if line.lstrip(self.PREFIX+WHITESPACE) in self.configs:
-                        for config_line in self.configs[line]:
-                            yield config_line
+                    # Strip away the line to just the block config name
+                    tmp_line = line.lstrip(WHITESPACE+self.PREFIX)
+                    # Check if it's a marker
+                    if tmp_line in self.configs:
+                        for config_line in self.configs[tmp_line]:
+                            # Include whatever whitespace we had before the prefix
+                            yield line[:line.find(SELF.PREFIX)]+config_line
                     else:
                         yield line
         except IOError:
