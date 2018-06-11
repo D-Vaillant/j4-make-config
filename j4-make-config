@@ -12,12 +12,24 @@ from subprocess import Popen, PIPE
 ## Not needed until --init works.
 # from shutil import copyfile
 
+WHITESPACE = " \t\n"
+
 class j4Config():
     """ Used to organize all of the configuration files. """
-    def __init__(self, theme_name=None, tolerant=False, verbose=False, quiet=False, *config_paths):
+    PREFIX = "# $i3-"
+
+    def __init__(self, theme_name=None, auto_run=True,
+            tolerant=False, verbose=False, quiet=False, *config_paths):
+        """ We pass in the arguments from our Parser into here.
+        theme goes to `theme_name`, the appended files go to `config_paths`."""
 
         self.raw_configs = {}
         self.configs = {}
+        if auto_run:
+            self.run()
+
+    def run(self, theme_name):
+        """ For `self.theme_name`k """
         if theme_name is not None:
             try:
                 self.readConfig(themes_list[theme_name], name="theme")
@@ -33,20 +45,26 @@ class j4Config():
         # Combines config blocks.
         self.consolidateConfigs()
 
+    def __getitem__(self, key):
+        return self.configs[key]
+
+    def __setitem__(self, key, value):
+        self.configs[key] = value
+
     def readConfig(self, file_path, name=None):
         """ Takes a file and extracts all of the blocks from it. """
         if name is None:
             name = file_path.split(os.sep)[-1]
         self.raw_configs[name] = {}
         with open(file_path, 'r') as file:
-            status = None
+            block_name = None
             for line in file:
-                if "$i3-" in line:
-                    status = line.strip()
-                    if status not in self.raw_configs[name]:
-                        self.raw_configs[name][status] = ''
-                elif status is not None:
-                    self.raw_configs[name][status] += line.rstrip()
+                if self.PREFIX in line:
+                    block_name = line.strip().lstrip(self.PREFIX)
+                    if block_name not in self.raw_configs[name]:
+                        self.raw_configs[name][block_name] = []
+                elif block_name is not None:
+                    self.raw_configs[name][block_name].append(line.rstrip())
         except IOError:
             print("Error: could not open %s" % file_path)
         
@@ -54,51 +72,40 @@ class j4Config():
         """ Combines all of the various raw_configs into a single config.
             We deal with conflicts on a mostly random basis except for `theme`
             being preferred over anything else. """
-        pass
+        for file_name, config_block_dict in self.raw_configs.items():
+            if file_name == 'theme:
+                continue
+            for config_block_name, config_block_content in config_block_dict:
+                self.configs[config_block_name] = config_block_content
+        try:
+            for theme_block_name, theme_block_content in self.raw_configs['theme'].items():
+                self.configs[theme_block_name] = theme_block_content
+        except KeyError:
+            pass
 
-    def generateConfig(configs, basefile_path='config.base', i3_path=None):
-        """ Either we pass the absolute basefile_path, or the relative basefile_path
+    def __iter__(self, basefile_path='config.base', i3_path=None):
+        """ A generatior that yields lines of the config.base with config block
+            markers replaced with config blocks.
+            Either we pass the absolute basefile_path, or the relative basefile_path
             and the i3 config path. """
         # Get the config directory path.
         if i3_path is None:
             i3_path = os.path.join(*basefile.split(os.sep)[:-1])
-            # Make sure this is relative.
-            basefile_path = basefile_path.split(os.sep)[-1]
+        # Make sure this is relative.
+        basefile_path = basefile_path.split(os.sep)[-1]
         # try to open i3 base config file
-        with open(i3_path + os.sep + basefile_path, 'r') as basefile:
+        with open(os.path.join(i3_path, basefile_path), 'r') as basefile:
             # append all additional configuration files
-            for appendFilename in args.append:
-                try:
-                    appendFile = open(i3_PATH + "/" + appendFilename, "r")
-                except IOError:
-                    print("Error: file %s could not be opened." % appendFilename)
-                    exit(1)
-            # read all lines of appendFile into list
-            baselines_list.extend(appendFile.readlines())
-            appendFile.close()
+            for line in basefile:
+                line = line.rstrip()
+                if line.lstrip(self.PREFIX+WHITESPACE) in self.configs:
+                    for config_line in self.configs[line]:
+                        yield config_line
+                else:
+                    yield line
         except IOError:
             print("Error: i3 base config file could not be opened.")
             exit(1)
-
-        # try to open i3 config file
-        try:
-            configfile = open(i3_CONFIG_PATH, "w")
-        except IOError:
-            print("Error: i3 config file could not be created.")
-            exit(1)
-        # iterate over base config lines, write all to config file
-        # and insert theme config at the right place
-        for line in baselines_list:
-            if line.lstrip().startswith("# $i3-theme-window"):
-                if args.theme is not None:
-                    configfile.write(windowText)
-            elif line.lstrip().startswith("# $i3-theme-bar"):
-                if args.theme is not None:
-                    configfile.write(barText)
-            else:
-                configfile.write(line)
-        configfile.flush()
-        configfile.close()
 
 # paths
 SYSTEM_THEME_PATH = "/usr/share/j4-make-config-git/themes"
