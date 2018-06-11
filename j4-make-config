@@ -10,9 +10,14 @@ from sys import argv
 import argparse
 from string import printable
 from subprocess import Popen, PIPE
-
 ## Not needed until --init works.
 # from shutil import copyfile
+
+DEBUG = False
+if DEBUG:
+    # For future use. Maybe.
+    import logging
+
 
 WHITESPACE = " \t\n"
 
@@ -226,6 +231,7 @@ def set_j4_cache(theme_name, interactive=False):
 
 
 def detectConfigDir():
+    """ We just brute force through all the locations i3 scans for. """
     i3_PATH = None
     if path.exists(getenv("HOME") + "/.i3/config.base"):
         i3_PATH = getenv("HOME") + "/.i3"
@@ -238,18 +244,21 @@ def detectConfigDir():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--themes', action='store_true',
-            help="Displays all available themes.")
-    parser.add_argument(
-            '-i', '--interactive', action='store_true',
-            help="Uses rofi to select a theme.")
-    parser.add_argument('-r', '--refresh', action='store_true',
-            help='Reload i3 after creating the config file.')
+    parser = argparse.ArgumentParser(
+            formatter_class=argparse.RawTextHelpFormatter,
+            epilog=epilog,
+    )
     parser.add_argument('-a', '--append', action='append',
             metavar='<file-name>', default=list(),
             help="Append additional configuration files located "
                  "in the i3 config directory.")
+    parser.add_argument(
+            '-i', '--interactive', action='store_true',
+            help="Uses rofi to select a theme.")
+    parser.add_argument('-l', '--list-themes', action='store_true',
+            help='List available themes.')
+    parser.add_argument('-r', '--refresh', action='store_true',
+            help='Reload i3 after creating the config file.')
     parser.add_argument('theme', action='store', nargs='?',
             metavar='<theme-name>|none', default=None,
             help="Create a config file using a specific theme or no theme.")
@@ -291,25 +300,6 @@ if __name__ == "__main__":
     if themes_list == {}:
         print("Error: No themes found.")
         exit(1)
-
-    parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawTextHelpFormatter,
-            epilog=epilog,
-    )
-    parser.add_argument('-a', '--append', action='append',
-            metavar='<file-name>', default=list(),
-            help="Append additional configuration files located "
-                 "in the i3 config directory.")
-    parser.add_argument(
-            '-i', '--interactive', action='store_true',
-            help="Uses rofi to select a theme.")
-    parser.add_argument('-l', '--list-themes', action='store_true',
-            help='List available themes.')
-    parser.add_argument('-r', '--refresh', action='store_true',
-            help='Reload i3 after creating the config file.')
-    parser.add_argument('theme', action='store', nargs='?',
-            metavar='<theme-name>|none', default=None,
-            help="Create a config file using a specific theme or no theme.")
 
     ## Parsing the arguments.
     if len(argv)==1:
