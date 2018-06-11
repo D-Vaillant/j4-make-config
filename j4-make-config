@@ -4,6 +4,7 @@
 # by Oliver Kraitschy
 # http://okraits.de okraits@arcor.de
 
+from __future__ import division
 from os import path, getenv, listdir, system, sep
 from sys import argv
 import argparse
@@ -140,20 +141,27 @@ def detectConfigDir():
             i3_PATH = getenv("XDG_CONFIG_HOME") + "/i3"
     return i3_PATH
 
-usage_info = """Usage examples:
-===============
-Create config file and include a specific theme:
-\tj4-make-config <theme-name>
-Create config file without including a theme:
-\tj4-make-config none
-Include a specific/no theme and reload i3 after creating the config file:
-\tj4-make-config -r <theme-name>|none
-Append additional configuration from files in the i3 config directory:
-\tj4-make-config -a <file-name> -a <another-file-name> <theme-name>|none
-Append additional configuration and reload i3 after creating the config file:
-\tj4-make-config -r -a <file-name> <theme-name>|none
-Run j4-make-config with the most recently used arguments:
-\tj4-make-config"""
+epilog = """
+examples:
+    Create config file and include a specific theme:
+        j4-make-config <theme-name>
+
+    Create config file without including a theme:
+        j4-make-config none
+
+    Include a specific/no theme and reload i3 after creating the config file:
+        j4-make-config -r <theme-name>|none
+
+    Append additional configuration from files in the i3 config directory:
+        j4-make-config -a <file-name> -a <another-file-name> <theme-name>|none
+
+    Append additional configuration and reload i3 after creating the config file:
+        j4-make-config -r -a <file-name> <theme-name>|none
+
+    Run j4-make-config with the most recently used arguments:
+        j4-make-config
+"""
+
 
 def ThemeListStr():
     line = ''
@@ -164,7 +172,7 @@ def ThemeListStr():
             if t.startswith(x):
                 elements.append(t)
         if elements:
-            for index, i in enumerate(range(len(elements) / count + 1)):
+            for index, i in enumerate(range(len(elements) // count + 1)):
                 if index:
                     line += '\t'
                 line += ', '.join(elements[i * count:(i + 1) * count]) + '\n'
@@ -266,18 +274,30 @@ if __name__ == "__main__":
             print("Error: No themes found.")
             exit(1)
 
-    """
-    if args.init:
-        copyfile(i3_CONFIG_PATH, i3_BASECONFIG_PATH)
-        print("Created config.base in %s." % i3_PATH)
-        exit(0)
-    """
+    parser = argparse.ArgumentParser(
+            formatter_class=argparse.RawTextHelpFormatter,
+            epilog=epilog,
+    )
+    parser.add_argument('-a', '--append', action='append',
+            metavar='<file-name>', default=list(),
+            help="Append additional configuration files located "
+                 "in the i3 config directory.")
+    parser.add_argument(
+            '-i', '--interactive', action='store_true',
+            help="Uses rofi to select a theme.")
+    parser.add_argument('-l', '--list-themes', action='store_true',
+            help='List available themes.')
+    parser.add_argument('-r', '--refresh', action='store_true',
+            help='Reload i3 after creating the config file.')
+    parser.add_argument('theme', action='store', nargs='?',
+            metavar='<theme-name>|none', default=None,
+            help="Create a config file using a specific theme or no theme.")
 
     ## Parsing the arguments.
     if len(argv)==1:
         args = parser.parse_args(get_j4_cache())
     else:
-        args = parser.parse_args() 
+        args = parser.parse_args()
     if args.interactive:
         ps = Popen("echo '%s' | rofi -width 30 -dmenu -p 'Set i3 theme:'" % \
                 ("\n".join(sorted(themes_list.keys()))),
@@ -288,10 +308,17 @@ if __name__ == "__main__":
             set_j4_cache(args.theme, interactive=True)
         if args.theme is None:
             exit(0)
-    if args.themes:
-        print(ThemeListStr())
+
+    if args.list_themes:
+        printThemeList()
         exit(0)
-    if args.theme is not None and args.theme != 'none':
+
+    if args.theme is None:
+        print("Error: theme argument is missing.")
+        exit(1)
+    if args.theme == 'none':
+        args.theme = None
+    else:
         # try to open given filename
         try:
             themefile = open(themes_list[args.theme], "r")
@@ -299,7 +326,7 @@ if __name__ == "__main__":
             print("Error: theme %s does not exist." % args.theme)
             print_info(usage=False)
             exit(1)
-        
+
         # read themefile, create section strings
         for line in themefile:
             if "$i3-theme-window" in line:
@@ -314,7 +341,7 @@ if __name__ == "__main__":
                 elif not windowActive and barActive:
                     barText += line
         themefile.close()
-    
+
     # try to open i3 base config file
     try:
         basefile = open(i3_BASECONFIG_PATH, "r")
@@ -324,7 +351,7 @@ if __name__ == "__main__":
     # read all lines of base config into list
     baselines_list.extend(basefile.readlines())
     basefile.close()
-    
+
     # append all additional configuration files
     for appendFilename in args.append:
         try:
@@ -335,14 +362,14 @@ if __name__ == "__main__":
         # read all lines of appendFile into list
         baselines_list.extend(appendFile.readlines())
         appendFile.close()
-    
+
     # try to open i3 config file
     try:
         configfile = open(i3_CONFIG_PATH, "w")
     except IOError:
         print("Error: i3 config file could not be created.")
         exit(1)
-    
+
     # iterate over base config lines, write all to config file
     # and insert theme config at the right place
     for line in baselines_list:
@@ -359,7 +386,7 @@ if __name__ == "__main__":
 
     if args.refresh:
         system("i3-msg reload")
-    
+
     # store commandstring in rc file
     set_j4_cache(args.theme, interactive=False)
     exit(0)
