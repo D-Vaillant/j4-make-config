@@ -4,7 +4,7 @@
 # by Oliver Kraitschy
 # http://okraits.de okraits@arcor.de
 
-from os import path, getenv, listdir, system
+from os import path, getenv, listdir, system, sep
 from sys import argv
 import argparse
 from subprocess import Popen, PIPE
@@ -54,17 +54,18 @@ class j4Config():
     def readConfig(self, file_path, name=None):
         """ Takes a file and extracts all of the blocks from it. """
         if name is None:
-            name = file_path.split(os.sep)[-1]
+            name = file_path.split(sep)[-1]
         self.raw_configs[name] = {}
-        with open(file_path, 'r') as file:
-            block_name = None
-            for line in file:
-                if self.PREFIX in line:
-                    block_name = line.strip().lstrip(self.PREFIX)
-                    if block_name not in self.raw_configs[name]:
-                        self.raw_configs[name][block_name] = []
-                elif block_name is not None:
-                    self.raw_configs[name][block_name].append(line.rstrip())
+        try:
+            with open(file_path, 'r') as file:
+                block_name = None
+                for line in file:
+                    if self.PREFIX in line:
+                        block_name = line.strip().lstrip(self.PREFIX)
+                        if block_name not in self.raw_configs[name]:
+                            self.raw_configs[name][block_name] = []
+                    elif block_name is not None:
+                        self.raw_configs[name][block_name].append(line.rstrip())
         except IOError:
             print("Error: could not open %s" % file_path)
         
@@ -73,7 +74,7 @@ class j4Config():
             We deal with conflicts on a mostly random basis except for `theme`
             being preferred over anything else. """
         for file_name, config_block_dict in self.raw_configs.items():
-            if file_name == 'theme:
+            if file_name == 'theme':
                 continue
             for config_block_name, config_block_content in config_block_dict:
                 self.configs[config_block_name] = config_block_content
@@ -90,19 +91,20 @@ class j4Config():
             and the i3 config path. """
         # Get the config directory path.
         if i3_path is None:
-            i3_path = os.path.join(*basefile.split(os.sep)[:-1])
+            i3_path = path.join(*basefile.split(sep)[:-1])
         # Make sure this is relative.
-        basefile_path = basefile_path.split(os.sep)[-1]
+        basefile_path = basefile_path.split(sep)[-1]
         # try to open i3 base config file
-        with open(os.path.join(i3_path, basefile_path), 'r') as basefile:
-            # append all additional configuration files
-            for line in basefile:
-                line = line.rstrip()
-                if line.lstrip(self.PREFIX+WHITESPACE) in self.configs:
-                    for config_line in self.configs[line]:
-                        yield config_line
-                else:
-                    yield line
+        try:
+            with open(path.join(i3_path, basefile_path), 'r') as basefile:
+                # append all additional configuration files
+                for line in basefile:
+                    line = line.rstrip()
+                    if line.lstrip(self.PREFIX+WHITESPACE) in self.configs:
+                        for config_line in self.configs[line]:
+                            yield config_line
+                    else:
+                        yield line
         except IOError:
             print("Error: i3 base config file could not be opened.")
             exit(1)
@@ -190,28 +192,6 @@ def set_j4_cache(theme_name, interactive=False):
     rcfile.close()
 
 if __name__ == "__main__":
-    ## Configuring the work environment.
-    # detect i3 configuration directory
-    if not detectConfigDir():
-        print("Error: i3 base config file could not be found.")
-        exit(1)
-    else:
-        # set paths
-        THEME_PATH = i3_PATH + "/themes"
-        i3_BASECONFIG_PATH = i3_PATH + "/config.base"
-        i3_CONFIG_PATH = i3_PATH + "/config"
-        # fill themes dictionary with names and paths
-        try:
-            if path.exists(SYSTEM_THEME_PATH):
-                for theme in listdir(SYSTEM_THEME_PATH):
-                    themes_list[theme] = SYSTEM_THEME_PATH + "/" + theme
-            if path.exists(THEME_PATH):
-                for theme in listdir(THEME_PATH):
-                    themes_list[theme] = THEME_PATH + "/" + theme
-        except (IOError, OSError):
-            print("Error: No themes found.")
-            exit(1)
-
     # TODO: Figure out how to get -h to work even if the config base doesn't exist yet.
     parser = argparse.ArgumentParser(description='i3 config generator/switcher',
             usage=usage_info+"\n"+theme_info)
@@ -238,6 +218,28 @@ if __name__ == "__main__":
         args = parser.parse_args(get_j4_cache())
     else:
         args = parser.parse_args() 
+
+    ## Configuring the work environment.
+    # detect i3 configuration directory
+    if not detectConfigDir():
+        print("Error: i3 base config file could not be found.")
+        exit(1)
+    else:
+        # set paths
+        THEME_PATH = i3_PATH + "/themes"
+        i3_BASECONFIG_PATH = i3_PATH + "/config.base"
+        i3_CONFIG_PATH = i3_PATH + "/config"
+        # fill themes dictionary with names and paths
+        try:
+            if path.exists(SYSTEM_THEME_PATH):
+                for theme in listdir(SYSTEM_THEME_PATH):
+                    themes_list[theme] = SYSTEM_THEME_PATH + "/" + theme
+            if path.exists(THEME_PATH):
+                for theme in listdir(THEME_PATH):
+                    themes_list[theme] = THEME_PATH + "/" + theme
+        except (IOError, OSError):
+            print("Error: No themes found.")
+            exit(1)
 
     """
     if args.init:
