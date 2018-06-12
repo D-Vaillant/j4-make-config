@@ -315,7 +315,7 @@ if __name__ == "__main__":
             exit(0)
 
     if args.list_themes:
-        printThemeList()
+        print(ThemeListStr())
         exit(0)
 
     if args.theme is None:
