@@ -142,20 +142,19 @@ def j4Consolidator(j4_config, i3_path, basefile_path='config.base'):
             # append all additional configuration files
             for line in basefile:
                 line = line.rstrip()
-                yield line+"\n"
                 # Strip away the line to just the block config name
-                try:
-                    head, tmp_line = line.split(j4_config.PREFIX)
-                except ValueError:
-                    continue
-                try:
-                    for config_line in j4_config[tmp_line]:
-                        # Include whatever whitespace we had before the prefix
-                        yield head+config_line+"\n"
-                except KeyError:
-                    pass
-            else:
-                yield line+"\n"
+                tmp_line = line.split(j4_config.PREFIX)[-1]
+                # Check if it's a marker
+                if tmp_line in j4_config:
+                    yield line+"\n"
+                    try:
+                        for config_line in j4_config[tmp_line]:
+                            # Include whatever whitespace we had before the prefix
+                            yield line[:line.find(j4_config.PREFIX)]+config_line+"\n"
+                    except KeyError:
+                        pass
+                else:
+                    yield line+"\n"
     except IOError:
         print("Error: i3 base config file could not be opened.")
         exit(1)
