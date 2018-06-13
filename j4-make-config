@@ -22,21 +22,18 @@ WHITESPACE = " \t\n"
 
 # paths
 SYSTEM_THEME_PATH = "/usr/share/j4-make-config-git/themes"
-THEME_PATH = ""
-i3_PATH = ""
-i3_CONFIG_PATH = ""
+HOME_DIR = getenv("HOME", '')
+XDG_CONFIG_DIR = getenv("XDG_CONFIG_HOME", '')
 # variables for config processing
 themes_list = {}
-windowText = ""
-barText = ""
-commandString = ""
 
+### Importing the config files
 class j4Config():
     """ Used to organize all of the configuration files. """
     PREFIX = "# $i3-"
 
-    def __init__(self, theme_name=None, auto_run=True,
-            tolerant=False, verbose=False, quiet=False, *config_paths):
+    def __init__(self, theme_name=None, cfg_files=None, auto_run=True,
+            tolerant=False, verbose=False, quiet=False):
         """ We pass in the arguments from our Parser into here.
         :param theme_name: The name of the theme. Key for `themes_list`.
         :param auto_run: Calls `self.run` during instance instantiation.
@@ -48,8 +45,9 @@ class j4Config():
         #self.themes_list = [] if themes_list is None else themes_list
         self.raw_configs = {}
         self.configs = {}
+        self.tolerant=tolerant
         if auto_run:
-            self.run(theme_name, config_paths)
+            self.run(theme_name, cfg_files or [])
 
     def run(self, theme_name, config_paths):
         """ For `self.theme_name`k """
@@ -59,13 +57,19 @@ class j4Config():
                 self.raw_configs['theme'] = self.readConfig(themes_list[theme_name])
             except KeyError:
                 # Future compat with optional theme
-                prefix = "Warning: " if tolerant else "Error: "
-                print(prefix + "theme %s does not exist." % theme_name)
-                print_info(usage=False)
-                if not tolerant:
+                themes_exist = (themes_list != {})
+                prefix = "Warning: " if self.tolerant else "Error: "
+                if themes_exist:
+                    msg = "theme %s does not exist." % theme_name
+                else:
+                    msg = "No themes found."
+                print(prefix + msg)
+                if themes_exist:
+                    print(format_themes())
+                if not self.tolerant:
                     exit(1)
             """
-            except NameError:
+           except NameError:
                 print("DEBUG: themes_list was not defined.")
                 exit(2)
             """
@@ -113,7 +117,7 @@ class j4Config():
                 continue
             # Right now, we just use whatever random order we want for these.
             # No inheritance here; just use different block names for now.
-            for config_block_name, config_block_content in config_block_dict:
+            for config_block_name, config_block_content in config_block_dict.items():
                 self.configs[config_block_name] = config_block_content
         try:
             # Theme is the KING config block.
@@ -149,6 +153,55 @@ def j4Consolidator(j4_config, i3_path, basefile_path='config.base'):
         exit(1)
 
 
+### Cached command.
+""" Instead of executing, I just do a split and load the values into the argparser. """
+def get_j4_cache():
+    if path.exists(HOME_DIR + "/.j4-make-config.rc"):
+        try:
+            rcfile = open(HOME_DIR + "/.j4-make-config.rc", "r")
+        except IOError:
+            print("Error: file %s could not be opened." % (HOME_DIR + "/.j4-make-config.rc"))
+            exit(1)
+        commandString = rcfile.read()
+        rcfile.close()
+        print("Executing: " + commandString)
+        return commandString.split()[1:]
+    else:
+        print("Error: file %s does not exist yet." % (HOME_DIR + "/.j4-make-config.rc"))
+        exit(1)
+
+def set_j4_cache(theme_name, interactive=False, reread=False):
+    if reread:
+        return
+    if theme_name is None:
+        theme_name = 'none'
+    if interactive:
+        commandString = argv[0] + ' -r ' + theme_name
+    else:
+        commandString = ' '.join(argv)
+    try:
+        rcfile = open(HOME_DIR + "/.j4-make-config.rc", "w")
+    except IOError:
+        print("Error: file %s could not be opened." % (HOME_DIR + "/.j4-make-config.rc"))
+        exit(1)
+    rcfile.write(commandString)
+    rcfile.flush()
+    rcfile.close()
+
+
+def detectConfigDir():
+    """ We just brute force through all the locations i3 scans for. """
+    i3_PATH = None
+    if path.exists(HOME_DIR + "/.i3/config.base"):
+        i3_PATH = HOME_DIR + "/.i3"
+    elif path.exists(HOME_DIR + "/.config/i3/config.base"):
+        i3_PATH = HOME_DIR + "/.config/i3"
+    if path.exists(XDG_CONFIG_DIR + "/i3/config.base"):
+        i3_PATH = XDG_CONFIG_DIR + "/i3"
+    return i3_PATH
+
+
+### Argparser Setup
 epilog = """
 examples:
     Create config file and include a specific theme:
@@ -170,8 +223,8 @@ examples:
         j4-make-config
 """
 
-
-def ThemeListStr():
+def format_themes():  # right now, use global as kwarg
+    """ Formats the theme_list and returns the information string. """
     line = ''
     count = 8
     for x in printable:
@@ -190,93 +243,60 @@ def ThemeListStr():
             "=================\n" + line
     )
 
-def print_info(usage=True, themes=True):
-    if usage:
-        print(usage_info)
-    if themes:
-        print(ThemeListStr())
+parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog=epilog,
+)
+parser.add_argument('-a', '--append', action='append',
+        metavar='<file-name>', default=list(),
+        help="Append additional configuration files located "
+             "in the i3 config directory.")
+parser.add_argument(
+        '-i', '--interactive', action='store_true',
+        help="Uses rofi to select a theme.")
+parser.add_argument('-l', '--list-themes', action='store_true',
+        help='List available themes.')
+parser.add_argument('-r', '--refresh', action='store_true',
+        help='Reload i3 after creating the config file.')
+parser.add_argument('theme', action='store', nargs='?',
+        metavar='<theme-name>|none', default=None,
+        help="Create a config file using a specific theme or no theme.")
+"""
+# This doesn't work just yet.
+parser.add_argument('--init', action='store_true',
+        help="Automatically create `config.base`.")
+"""
 
+class j4Runner():
+    def __init__(self):
+        pass
 
-""" Instead of executing, I just do a split and load the values into the argparser. """
-def get_j4_cache():
-    if path.exists(getenv("HOME") + "/.j4-make-config.rc"):
-        try:
-            rcfile = open(getenv("HOME") + "/.j4-make-config.rc", "r")
-        except IOError:
-            print("Error: file %s could not be opened." % (getenv("HOME") + "/.j4-make-config.rc"))
-            exit(1)
-        commandString = rcfile.read()
-        rcfile.close()
-        print("Executing: " + commandString)
-        return commandString.split()[1:]
-    else:
-        print("Error: file %s does not exist yet." % (getenv("HOME") + "/.j4-make-config.rc"))
+### Our various methods..
+def rofi_gettheme(args):
+    if themes_list == {}:
+        print("Error: No themes found.")
         exit(1)
+    ps = Popen("echo '%s' | rofi -width 30 -dmenu -p 'Set i3 theme:'" % \
+            ("\n".join(sorted(themes_list.keys()))),
+            stdout=PIPE, stderr=PIPE, shell=True, universal_newlines=True)
+    for line in ps.stdout:
+        args.theme = line[:-1]
+        args.refresh = True
+        # set_j4_cache(args.theme, interactive=True)
+    if args.theme is None:
+        exit(0)
 
-def set_j4_cache(theme_name, interactive=False, reread=False):
-    if reread:
-        return
-    if theme_name is None:
-        theme_name = 'none'
-    if interactive:
-        commandString = argv[0] + ' -r ' + theme_name
-    else:
-        commandString = ' '.join(argv)
+def load_themes(filepath):
+    out = {}
     try:
-        rcfile = open(getenv("HOME") + "/.j4-make-config.rc", "w")
-    except IOError:
-        print("Error: file %s could not be opened." % (getenv("HOME") + "/.j4-make-config.rc"))
-        exit(1)
-    rcfile.write(commandString)
-    rcfile.flush()
-    rcfile.close()
+        for theme in listdir(filepath):
+            out[theme] = path.join(filepath, theme)
+    except (IOError, OSError):
+        pass
+    return out
 
-
-def detectConfigDir():
-    """ We just brute force through all the locations i3 scans for. """
-    i3_PATH = None
-    if path.exists(getenv("HOME") + "/.i3/config.base"):
-        i3_PATH = getenv("HOME") + "/.i3"
-    elif path.exists(getenv("HOME") + "/.config/i3/config.base"):
-        i3_PATH = getenv("HOME") + "/.config/i3"
-    elif getenv("XDG_CONFIG_HOME") is not None:
-        if path.exists(getenv("XDG_CONFIG_HOME") + "/i3/config.base"):
-            i3_PATH = getenv("XDG_CONFIG_HOME") + "/i3"
-    return i3_PATH
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-            formatter_class=argparse.RawTextHelpFormatter,
-            epilog=epilog,
-    )
-    parser.add_argument('-a', '--append', action='append',
-            metavar='<file-name>', default=list(),
-            help="Append additional configuration files located "
-                 "in the i3 config directory.")
-    parser.add_argument(
-            '-i', '--interactive', action='store_true',
-            help="Uses rofi to select a theme.")
-    parser.add_argument('-l', '--list-themes', action='store_true',
-            help='List available themes.')
-    parser.add_argument('-r', '--refresh', action='store_true',
-            help='Reload i3 after creating the config file.')
-    parser.add_argument('theme', action='store', nargs='?',
-            metavar='<theme-name>|none', default=None,
-            help="Create a config file using a specific theme or no theme.")
-    """
-    # This doesn't work just yet.
-    parser.add_argument('--init', action='store_true',
-            help="Automatically create `config.base`.")
-    """
-
-    ## Parsing the arguments.
-    if len(argv)==1:
-        args = parser.parse_args(get_j4_cache())
-    else:
-        args = parser.parse_args() 
-
-    ## Configuring the work environment.
+def main(args):
+        ## Configuring the work environment.
     # detect i3 configuration directory
     i3_PATH = detectConfigDir()
     if not i3_PATH:
@@ -286,46 +306,33 @@ if __name__ == "__main__":
     # set paths
     THEME_PATH = i3_PATH + sep + "themes"
     i3_CONFIG_PATH = i3_PATH + sep + "config"
+
     # fill themes dictionary with names and paths
-    try:
-        for theme in listdir(SYSTEM_THEME_PATH):
-            themes_list[theme] = SYSTEM_THEME_PATH + sep + theme
-    except (IOError, OSError):
-        pass
-
-    try:
-        for theme in listdir(THEME_PATH):
-            themes_list[theme] = THEME_PATH + sep + theme
-    except (IOError, OSError):
-        pass
-
+    themes_list.update(load_themes(SYSTEM_THEME_PATH))
+    themes_list.update(load_themes(THEME_PATH))
+    """ We've moved these checks to when we actually need themes.
     if themes_list == {}:
         print("Error: No themes found.")
         exit(1)
+    """
 
     if args.interactive:
-        ps = Popen("echo '%s' | rofi -width 30 -dmenu -p 'Set i3 theme:'" % \
-                ("\n".join(sorted(themes_list.keys()))),
-                stdout=PIPE, stderr=PIPE, shell=True, universal_newlines=True)
-        for line in ps.stdout:
-            args.theme = line[:-1]
-            args.refresh = True
-            # set_j4_cache(args.theme, interactive=True)
-        if args.theme is None:
-            exit(0)
+        rofi_gettheme(args)
 
     if args.list_themes:
-        print(ThemeListStr())
+        print(format_themes())
         exit(0)
 
+    """ We don't need this at this point.
     if args.theme is None:
         print("Error: theme argument is missing.")
         exit(1)
+    """
     if args.theme == 'none':
         args.theme = None
 
     j4_config = j4Config(theme_name=args.theme,
-            *[i3_PATH+sep+arg for arg in args.append])
+            cfg_files=(i3_PATH+sep+arg for arg in args.append))
     j4_lines = j4Consolidator(j4_config, i3_PATH)
 
     # try to open i3 config file
@@ -345,3 +352,11 @@ if __name__ == "__main__":
     # store commandstring in rc file
     set_j4_cache(args.theme, interactive=args.interactive, reread=(len(argv)==1))
     exit(0)
+
+if __name__ == "__main__":
+    ## Parsing the arguments.
+    if len(argv)==1:
+        args = parser.parse_args(get_j4_cache())
+    else:
+        args = parser.parse_args() 
+    main(args)
