@@ -130,8 +130,8 @@ class j4Config():
             pass
 
 
-def j4Consolidator(j4_config, i3_path, basefile_path='config.base'):
-    """ A generatior that yields lines of the config.base with config block
+def j4Consolidator(j4_config, i3_path, basefile_path='config'):
+    """ A generatior that yields lines of config with config block
     markers replaced with config blocks.
     :param i3_path: The location of our i3 config. Absolute.
     :param basefile_path: If we don't want to call the basefile `config.base`.
