@@ -193,11 +193,15 @@ def j4Consolidator(j4_config, i3_path, basefile_path='config'):
                         logging.warning("Block with name %s called "
                                         "but not used.", tmp_line)
                         yield line+"\n"
+                        """
                         # Erase everything in unused blocks.
-                        #   Can be an argument to change this behavior.
+                        #   I'm not huge on this; users can just add empty
+                        #   blocks in their config files to erase.
+                        #   Better to make you work to erase than to keep.
                         inside_block = True
                         yield (preprefix + j4_config.PREFIX +
                                "end-" + tmp_line + "\n")
+                        """
             if inside_block:  # after looping through file
                 logging.error("Reached the end of the file without "
                               "ending the previous block.")
