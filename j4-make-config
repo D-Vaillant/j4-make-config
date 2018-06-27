@@ -168,6 +168,7 @@ def j4Consolidator(j4_config, i3_path, basefile_path='config'):
 
                 tmp_line = line.split(j4_config.PREFIX)[-1]
                 preprefix = line[:line.find(j4_config.PREFIX)]
+                #prefix = preprefix + j4_config.PREFIX
                 if tmp_line in j4_config:
                     logging.info("Found a block with name  `%s`.", tmp_line)
                     if inside_block:
@@ -179,8 +180,10 @@ def j4Consolidator(j4_config, i3_path, basefile_path='config'):
 
                     whitespace = ' '*len(preprefix)
                     for config_line in j4_config[tmp_line]:
+                        yield "%s%s\n"%(whitespace, config_line)
                         yield whitespace + config_line + "\n"
-                    yield preprefix + j4_config.PREFIX + "end" + "\n"
+                    yield (preprefix + j4_config.PREFIX +
+                           "end-" + tmp_line + "\n")
                     inside_block = True
                 else:
                     if tmp_line.startswith("end"):
@@ -190,6 +193,11 @@ def j4Consolidator(j4_config, i3_path, basefile_path='config'):
                         logging.warning("Block with name %s called "
                                         "but not used.", tmp_line)
                         yield line+"\n"
+                        # Erase everything in unused blocks.
+                        #   Can be an argument to change this behavior.
+                        inside_block = True
+                        yield (preprefix + j4_config.PREFIX +
+                               "end-" + tmp_line + "\n")
             if inside_block:  # after looping through file
                 logging.error("Reached the end of the file without "
                               "ending the previous block.")
