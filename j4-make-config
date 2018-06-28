@@ -154,15 +154,17 @@ def j4Consolidator(j4_config, i3_path, basefile_path='config'):
     :param i3_path: The location of our i3 config. Absolute.
     :param basefile_path: If we want to use `config.base`.
     """
-    # try to open i3 base config file
+
     try:
         with open(path.join(i3_path, basefile_path), 'r') as basefile:
+            # We start at the beginning, not in a block.
             inside_block = False
             for line in basefile:
-                line = line.rstrip()
+                line = line.rstrip()  # We'll need to tack on \n but easier.
                 if j4_config.PREFIX not in line:
                     # We're in a normal line.
                     if not inside_block:
+                        # And we're not in a block, so keep the original.
                         yield line+"\n"
                     continue
 
@@ -180,14 +182,16 @@ def j4Consolidator(j4_config, i3_path, basefile_path='config'):
 
                     whitespace = ' '*len(preprefix)
                     for config_line in j4_config[tmp_line]:
-                        yield "%s%s\n"%(whitespace, config_line)
                         yield whitespace + config_line + "\n"
                     yield (preprefix + j4_config.PREFIX +
                            "end-" + tmp_line + "\n")
+                    logging.debug("Starting new block.")
                     inside_block = True
                 else:
                     if tmp_line.startswith("end"):
                         logging.info("Ending previous block.")
+                        if not inside_block: 
+                            yield line+"\n"
                         inside_block = False
                     else:
                         logging.warning("Block with name %s called "
@@ -199,8 +203,6 @@ def j4Consolidator(j4_config, i3_path, basefile_path='config'):
                         #   blocks in their config files to erase.
                         #   Better to make you work to erase than to keep.
                         inside_block = True
-                        yield (preprefix + j4_config.PREFIX +
-                               "end-" + tmp_line + "\n")
                         """
             if inside_block:  # after looping through file
                 logging.error("Reached the end of the file without "
@@ -250,14 +252,14 @@ def set_j4_cache(theme_name, interactive=False, reread=False):
 
 # Variable Preparation
 ######################
-def detectConfigDir():
+def detectConfigDir(basefile='config'):
     """ We just brute force through all the locations i3 scans for. """
     i3_PATH = None
-    if path.exists(HOME_DIR + "/.i3/config.base"):
+    if path.exists(HOME_DIR + "/.i3/" + basefile):
         i3_PATH = HOME_DIR + "/.i3"
-    elif path.exists(HOME_DIR + "/.config/i3/config.base"):
+    elif path.exists(HOME_DIR + "/.config/i3/" + basefile):
         i3_PATH = HOME_DIR + "/.config/i3"
-    if path.exists(XDG_CONFIG_DIR + "/i3/config.base"):
+    if path.exists(XDG_CONFIG_DIR + "/i3/" + basefile):
         i3_PATH = XDG_CONFIG_DIR + "/i3"
     return i3_PATH
 
@@ -407,6 +409,7 @@ def main(args):
     j4_config = j4Config(theme_name=args.theme,
             cfg_files=(i3_PATH+sep+arg for arg in args.append))
     # We need to load this into memory now.
+    print(j4_config.configs)
     j4_lines = list(j4Consolidator(j4_config, i3_PATH))
 
     # try to open i3 config file
