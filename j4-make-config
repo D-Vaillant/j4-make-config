@@ -10,13 +10,12 @@ from sys import argv
 import argparse
 from string import printable
 from subprocess import Popen, PIPE
+import logging
 
-DEBUG = True
-if DEBUG:
-    # For future use. Maybe.
-    import logging
-    logging.basicConfig(level=logging.DEBUG,
-            format='%(levelname)-7s : %(funcName)s -> %(message)s')
+DEBUG = False
+log_level = logging.DEBUG if DEBUG else logging.WARNING
+logging.basicConfig(level=log_level,
+        format='%(levelname)-7s : %(funcName)s -> %(message)s')
 
 WHITESPACE = " \t\n"
 HOME_DIR = getenv("HOME", '')
@@ -44,7 +43,7 @@ class j4Config():
     PREFIX = "# $i3-"
 
     def __init__(self, theme_name=None, cfg_files=None, auto_run=True,
-            tolerant=False, verbose=False, quiet=False):
+            tolerant=True, verbose=False, quiet=False):
         """ We pass in the arguments from our Parser into here.
         :param theme_name: The name of the theme. Key for `theme_list`.
         :param cfg_files: A list of all of the config file locations. Absolute.
@@ -108,7 +107,7 @@ class j4Config():
                 # Future compat with optional theme
                 themes_exist = (theme_list != {})
                 msg_prefix = "Warning: " if self.tolerant else "Error: "
-                lvl = "WARNING" if self.tolerant else "ERROR"
+                lvl = 30 if self.tolerant else 40
                 if themes_exist:
                     msg = "theme %s does not exist." % theme_name
                 else:
@@ -117,7 +116,9 @@ class j4Config():
                 logging.log(lvl, msg_prefix+msg)
                 #print(msg_prefix + msg)
                 if themes_exist:
+                    print()
                     print(format_themes())
+                    print('=================\n')
                 if not self.tolerant:
                     exit(1)
         return raw_configs
@@ -194,8 +195,8 @@ def j4Consolidator(j4_config, i3_path, basefile_path='config'):
                             yield line+"\n"
                         inside_block = False
                     else:
-                        logging.warning("Block with name %s called "
-                                        "but not used.", tmp_line)
+                        logging.info("Block with name %s called "
+                                     "but not used.", tmp_line)
                         yield line+"\n"
                         """
                         # Erase everything in unused blocks.
@@ -409,7 +410,6 @@ def main(args):
     j4_config = j4Config(theme_name=args.theme,
             cfg_files=(i3_PATH+sep+arg for arg in args.append))
     # We need to load this into memory now.
-    print(j4_config.configs)
     j4_lines = list(j4Consolidator(j4_config, i3_PATH))
 
     # try to open i3 config file
