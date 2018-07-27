@@ -364,14 +364,11 @@ examples:
     arg.add_argument('-r', '--refresh', action='store_true',
                      help='Reload i3 after creating the config file.')
 
-    """
-    # For possible future implementation.
     arg.add_argument('-c', '--cache', action='store_true',
                      help='Cache the current arguments.')
 
     arg.add_argument('--load-cache', action='store_true',
                      help='Use the cached arguments.)
-    """
 
     arg.add_argument('theme', metavar='<theme-name>|none',
                      action='store', nargs='?', default=None,
@@ -429,8 +426,8 @@ def main(args):
         system("i3-msg reload")
 
     # store commandstring in rc file
-    #if args.cache:
-    if False:
+    if args.cache:
+    # if False:
         set_j4_cache(args.theme, interactive=args.interactive,
                      reread=(len(argv)==1))
     exit(0)
