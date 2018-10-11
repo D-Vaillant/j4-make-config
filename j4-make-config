@@ -59,7 +59,7 @@ class j4Config():
             print("Error: `theme_name` was not defined during `j4Config.__init__`.")
             exit(3)
         self.configs = {}
-        self.tolerant=tolerant
+        self.tolerant = tolerant
         if auto_run:
             self.run(theme_name, cfg_files or [])
 
@@ -71,6 +71,7 @@ class j4Config():
     def readConfig(self, file_path):
         """ Takes a file and extracts all of the blocks from it. """
         config_dict = {}
+        newline_buffer = 0
         try:
             with open(file_path, 'r') as file:
                 block_name = None
@@ -79,11 +80,22 @@ class j4Config():
                     if line.startswith(self.PREFIX):
                         # Set our active config block
                         block_name = line.strip().lstrip(self.PREFIX)
-                        if block_name not in config_dict:
+                        if block_name.startswith('end'):
+                            block_name = None
+                        elif block_name not in config_dict:
                             config_dict[block_name] = []
+                        newline_buffer = 0
                     # All subsequent lines are added to the active config block
                     elif block_name is not None:
-                        config_dict[block_name].append(line.rstrip())
+                        if line.isspace():
+                            newline_buffer += 1
+                        else:
+                            if newline_buffer > 0:
+                            # POSSIBLE TODO: Replace '\n' with Windows-compat.
+                            # Who cares though?
+                                config_dict[block_name].append('\n'*(newline_buffer-1))
+                                newline_buffer = 0
+                            config_dict[block_name].append(line.rstrip())
         except IOError:
             print("Error: could not open %s" % file_path)
         finally:
@@ -148,6 +160,7 @@ class j4Config():
 
     def __contains__(self, key):
         return key in self.configs
+
 
 def j4Consolidator(j4_config, i3_path, basefile_path='config'):
     """ A generator that yields lines of config with config block
@@ -320,33 +333,26 @@ def load_themes(filepath):
 def get_parser():
     epilog = """
 examples:
-    Create config file and include a specific theme:
-        j4-make-config <theme-name>
+    Create config file using a file:
+        j4-make-config <file-name>
 
-    Create config file without including a theme:
-        j4-make-config none
+    Create config file using a file and a theme file:
+        j4-make-config <file-name> --theme <theme-name>
 
-    Include a specific/no theme and reload i3 after creating the config file:
-        j4-make-config -r <theme-name>|none
+    Cache the above commandline arguments:
+        j4-make-config <file-name> --theme <theme-name> --cache
+        j4-make-config [commands] --cache
 
-    Append additional configuration from files in the i3 config directory:
-        j4-make-config -a <file-name> -a <another-file-name> <theme-name>|none
-
-    Append additional configuration and reload i3 after creating the config file:
-        j4-make-config -r -a <file-name> <theme-name>|none
-"""
-
-    """
-    Cache the above command:
-        j4-make-config -r -a <file-name> <theme-name>|none --cache
-
-    Run j4-make-config with the cached arguments:
+    Use the cached commandline arguments:
         j4-make-config --load-cache
-    """
+
+    Interactively select a theme:
+        j4-make-config -i
+"""
 
     arg = argparse.ArgumentParser(
               epilog=epilog,
-              formatter_class=argparse.RawTextHelpFormatter,)
+              formatter_class=argparse.RawTextHelpFormatter)
     
     # NOTE: Should we allow for absolute filenames here?
     arg.add_argument('-a', '--append', action='append',
@@ -358,22 +364,23 @@ examples:
                      help="Uses rofi to select a theme.")
 
     arg.add_argument('-l', '--list-themes', action='store_true',
-                     help='List available themes.')
+                     help="List available themes.")
 
     # NOTE: Should this be on by default?
-    arg.add_argument('-r', '--refresh', action='store_true',
-                     help='Reload i3 after creating the config file.')
+    arg.add_argument('-n', '--norefresh', action='store_false',
+                     help="Don't reload  i3 after creating the config file.")
 
     arg.add_argument('-c', '--cache', action='store_true',
-                     help='Cache the current arguments.')
+                     help="Cache the current arguments.")
 
     arg.add_argument('--load-cache', action='store_true',
-                     help='Use the cached arguments.)
+                     help="Use the cached arguments.")
 
-    arg.add_argument('theme', metavar='<theme-name>|none',
+    arg.add_argument('-t', '--theme', metavar='<theme-name>',
                      action='store', nargs='?', default=None,
-                     help="Create a config file using a specific theme "
-                          "or no theme.")
+                     help="Create a config file using a specific theme. "
+                          "Has the effect of setting the theme file "
+                          "as the highest priority.")
     return arg
 
 
@@ -420,14 +427,12 @@ def main(args):
         print("Error: i3 config file could not be created.")
         exit(1)
 
-    #if args.refresh:
-    # Testing, because I hate typing `-r` each time.
-    if True: 
+    # Refreshes by default.
+    if args.norefresh: 
         system("i3-msg reload")
 
     # store commandstring in rc file
     if args.cache:
-    # if False:
         set_j4_cache(args.theme, interactive=args.interactive,
                      reread=(len(argv)==1))
     exit(0)
